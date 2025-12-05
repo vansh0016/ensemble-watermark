@@ -1,0 +1,56 @@
+Config A,Config B,U-Statistic,p-Value,Adjusted p-Value,Significant
+Human Text,LLM Baseline,1238.5,0.9395514751464409,1.0,False
+Human Text,Senso-Sync (Weak),2396.0,2.857212669942745e-15,1.5714669684685097e-13,True
+Human Text,RedGreen (Weak),1283.0,0.8227154006794747,1.0,False
+Human Text,Full Adaptive (Weak),2397.0,2.703466692381768e-15,1.4869066808099724e-13,True
+Human Text,Senso-Sync (Medium),2500.0,7.056515932760645e-18,3.8810837630183546e-16,True
+Human Text,RedGreen (Medium),1285.5,0.809331880335602,1.0,False
+Human Text,Full Adaptive (Medium),2500.0,7.05810774856964e-18,3.881959261713302e-16,True
+Human Text,Senso-Sync (Strong),2500.0,7.059699904472256e-18,3.882834947459741e-16,True
+Human Text,RedGreen (Strong),1015.5,0.10670688180454026,1.0,False
+Human Text,Full Adaptive (Strong),2500.0,7.056515932760645e-18,3.8810837630183546e-16,True
+LLM Baseline,Senso-Sync (Weak),2268.0,2.306622521274324e-12,1.2686423867008781e-10,True
+LLM Baseline,RedGreen (Weak),1320.0,0.6318478069037069,1.0,False
+LLM Baseline,Full Adaptive (Weak),2302.0,4.20117698716039e-13,2.3106473429382145e-11,True
+LLM Baseline,Senso-Sync (Medium),2462.0,6.713768786558968e-17,3.6925728326074325e-15,True
+LLM Baseline,RedGreen (Medium),1286.0,0.8066633229321237,1.0,False
+LLM Baseline,Full Adaptive (Medium),2459.0,7.99889450213091e-17,4.399391976172001e-15,True
+LLM Baseline,Senso-Sync (Strong),2498.0,7.965229107328425e-18,4.380876009030634e-16,True
+LLM Baseline,RedGreen (Strong),1070.5,0.217199711797457,1.0,False
+LLM Baseline,Full Adaptive (Strong),2500.0,7.059699904472256e-18,3.882834947459741e-16,True
+Senso-Sync (Weak),RedGreen (Weak),258.0,8.185447726001594e-12,4.5019962493008767e-10,True
+Senso-Sync (Weak),Full Adaptive (Weak),1353.0,0.4797995377293688,1.0,False
+Senso-Sync (Weak),Senso-Sync (Medium),2485.0,1.7318903134020875e-17,9.525396723711482e-16,True
+Senso-Sync (Weak),RedGreen (Medium),200.5,4.772002105672153e-13,2.6246011581196842e-11,True
+Senso-Sync (Weak),Full Adaptive (Medium),2465.0,5.636330155787322e-17,3.0999815856830274e-15,True
+Senso-Sync (Weak),Senso-Sync (Strong),2499.0,7.502365180895634e-18,4.126300849492598e-16,True
+Senso-Sync (Weak),RedGreen (Strong),144.0,2.5148815917120172e-14,1.3831848754416094e-12,True
+Senso-Sync (Weak),Full Adaptive (Strong),2500.0,7.061292400536998e-18,3.883710820295349e-16,True
+RedGreen (Weak),Full Adaptive (Weak),2277.5,1.4409286747129775e-12,7.925107710921376e-11,True
+RedGreen (Weak),Senso-Sync (Medium),2500.0,7.05810774856964e-18,3.881959261713302e-16,True
+RedGreen (Weak),RedGreen (Medium),1233.0,0.9094364565728408,1.0,False
+RedGreen (Weak),Full Adaptive (Medium),2500.0,7.059699904472256e-18,3.882834947459741e-16,True
+RedGreen (Weak),Senso-Sync (Strong),2500.0,7.061292400536998e-18,3.883710820295349e-16,True
+RedGreen (Weak),RedGreen (Strong),1006.5,0.09389238735610687,1.0,False
+RedGreen (Weak),Full Adaptive (Strong),2500.0,7.05810774856964e-18,3.881959261713302e-16,True
+Full Adaptive (Weak),Senso-Sync (Medium),2466.0,5.312422893100168e-17,2.9218325912050922e-15,True
+Full Adaptive (Weak),RedGreen (Medium),181.0,1.75704252355516e-13,9.66373387955338e-12,True
+Full Adaptive (Weak),Full Adaptive (Medium),2443.0,2.0184884187881114e-16,1.1101686303334612e-14,True
+Full Adaptive (Weak),Senso-Sync (Strong),2497.0,8.45625890075065e-18,4.650942395412857e-16,True
+Full Adaptive (Weak),RedGreen (Strong),124.5,8.791486500413657e-15,4.835317575227511e-13,True
+Full Adaptive (Weak),Full Adaptive (Strong),2500.0,7.05810774856964e-18,3.881959261713302e-16,True
+Senso-Sync (Medium),RedGreen (Medium),0.0,7.061292400536998e-18,3.883710820295349e-16,True
+Senso-Sync (Medium),Full Adaptive (Medium),1065.0,0.20339568882243697,1.0,False
+Senso-Sync (Medium),Senso-Sync (Strong),2422.0,6.68124773727248e-16,3.674686255499864e-14,True
+Senso-Sync (Medium),RedGreen (Strong),0.0,7.061292400536998e-18,3.883710820295349e-16,True
+Senso-Sync (Medium),Full Adaptive (Strong),2499.0,7.493922502408317e-18,4.1216573763245747e-16,True
+RedGreen (Medium),Full Adaptive (Medium),2500.0,7.062885236832336e-18,3.884586880257785e-16,True
+RedGreen (Medium),Senso-Sync (Strong),2500.0,7.064478413426748e-18,3.8854631273847117e-16,True
+RedGreen (Medium),RedGreen (Strong),1030.0,0.13022360696818036,1.0,False
+RedGreen (Medium),Full Adaptive (Strong),2500.0,7.061292400536998e-18,3.883710820295349e-16,True
+Full Adaptive (Medium),Senso-Sync (Strong),2442.0,2.138320879386606e-16,1.1760764836626334e-14,True
+Full Adaptive (Medium),RedGreen (Strong),0.0,7.062885236832336e-18,3.884586880257785e-16,True
+Full Adaptive (Medium),Full Adaptive (Strong),2500.0,7.05810774856964e-18,3.881959261713302e-16,True
+Senso-Sync (Strong),RedGreen (Strong),0.0,7.064478413426748e-18,3.8854631273847117e-16,True
+Senso-Sync (Strong),Full Adaptive (Strong),1363.0,0.4380036885942614,1.0,False
+RedGreen (Strong),Full Adaptive (Strong),2500.0,7.061292400536998e-18,3.883710820295349e-16,True

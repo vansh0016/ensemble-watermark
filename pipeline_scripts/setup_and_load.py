@@ -18,7 +18,6 @@ print("  Loading Spacy model 'en_core_web_sm'...")
 nlp = spacy.load("en_core_web_sm")
 shared.nlp = nlp
 
-# This model name is from your last version of the notebook
 shared.model_name = "Meta-Llama-3.1-8B-Instruct-GPTQ-INT4"
 shared.act_order = True
 print(f"  Loading model: {shared.model_name}...")
@@ -27,12 +26,10 @@ t0 = time.time()
 shared.groupsize = 128
 shared.wbits = 4
 shared.use_flash_attention_2 = False
-# Note: The 'gptq' and 'awq' flags were hardcoded to False in your notebook
 shared.model, shared.tokenizer = load_model(shared.model_name, gptq=False, awq=False)
 
 print(f"  Model loaded in {(time.time()-t0):.2f} seconds.")
 
-# Load sensorimotor norms from the root project directory
 csv_path = 'Lancaster_sensorimotor_norms_for_39707_words.csv'
 if not os.path.exists(csv_path):
     print(f"  ERROR: Cannot find {csv_path}. Make sure it's in the root folder.")
@@ -45,7 +42,6 @@ else:
 
 from modules.text_generation import generate_reply
 
-# Define utility functions in the shared module so they are accessible
 def secure_hash_for_sentence(last_sentence, range_min, range_max):
     doc = nlp(last_sentence)
     core_sentence = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
@@ -85,7 +81,6 @@ def get_last_sentence(text):
     sentences = [sent.text for sent in doc.sents]
     return sentences[-1] if sentences else None
 
-# Assign functions to shared module
 shared.secure_hash_for_sentence = secure_hash_for_sentence
 shared.secure_hash_for_token = secure_hash_for_token
 shared.secure_hash_to_numbers = secure_hash_to_numbers

@@ -52,7 +52,7 @@ def token_hash(token_id):
 
 def calculate_z_score(reply, original_message_bits):
     """
-    Calculates Z-score (not BER) using token-hash synchronization.
+    Calculates Z-score using token-hash synchronization.
     Returns a list of Z-scores at intervals and a final perplexity.
     """
     if not reply or not original_message_bits:
@@ -73,13 +73,11 @@ def calculate_z_score(reply, original_message_bits):
         is_group_1 = GROUP_1_MASK[current_token].item()
         
         if not is_group_0 and not is_group_1:
-            continue 
+            continue
             
         num_opportunities += 1
-        
         bit_index = token_hash(last_token) % message_len
         expected_bit = original_message_bits[bit_index]
-        
         is_hit = (expected_bit == 0 and is_group_0) or (expected_bit == 1 and is_group_1)
         hits.append(is_hit)
         

@@ -6,12 +6,10 @@ import pandas as pd
 import seaborn as sns
 import os
 
-# === Parameters ===
 DETECTION_ORIGINAL_FILE = os.environ.get('DETECTION_FILE_PATH', 'outputs/detection_results.json')
 DETECTION_ATTACK_TRANSLATION_FILE = os.environ.get('DETECTION_ATTACK_OUTPUT_FILE_TRANSLATION', 'outputs/detection_results_attack_translation.json')
 DETECTION_ATTACK_T5_FILE = os.environ.get('DETECTION_ATTACK_OUTPUT_FILE_T5', 'outputs/detection_results_attack_t5.json')
 PLOT_ATTACK_OUTPUT_PATH = os.environ.get('PLOT_ATTACK_OUTPUT_PATH', 'outputs/attack_results_comparison.png')
-# ---
 
 def load_detection_data(filepath):
     """Loads detection data and converts final_scores to z-scores."""
@@ -44,7 +42,6 @@ def prob_to_z_score(prob):
     if prob <= 0: prob = 1e-12
     elif prob >= 1: prob = 1 - 1e-12
     z = norm.ppf(prob)
-    # Cap z-scores at reasonable bounds if needed, e.g., -10 to 10
     return np.clip(z, -10, 10)
 
 print("  Loading detection results for comparison...")
@@ -55,9 +52,7 @@ t5_z_scores = load_detection_data(DETECTION_ATTACK_T5_FILE)
 if not original_z_scores:
     print("  ERROR: Cannot plot without original detection results. Exiting plot script.")
 else:
-    # --- Data Preparation for Plotting ---
     plot_data = []
-    # Config renaming from your notebook
     config_name_mapping = {
         "baseline": "Human",
         "llm_baseline": "LLM Baseline",
@@ -70,7 +65,6 @@ else:
         "llm_all_three_medium": "All Three"
     }
     
-    # Define order for plotting
     config_order = [
         "baseline", "llm_baseline", "llm_senso_medium", "llm_acro_medium", 
         "llm_redgreen_medium", "llm_both_medium", "llm_senso_redgreen_medium",
@@ -78,43 +72,37 @@ else:
     ]
 
     for config in config_order:
-        if config not in original_z_scores: continue # Skip if config not found
+        if config not in original_z_scores: continue
         
         label = config_name_mapping.get(config, config)
         
-        # Original
         for z in original_z_scores.get(config, []):
             plot_data.append({'Configuration': label, 'Attack': 'Original', 'Z-Score': z})
             
-        # Translation Attack
         if translation_z_scores and config in translation_z_scores:
             for z in translation_z_scores.get(config, []):
                 plot_data.append({'Configuration': label, 'Attack': 'Translation', 'Z-Score': z})
 
-        # T5 Attack
         if t5_z_scores and config in t5_z_scores:
              for z in t5_z_scores.get(config, []):
                 plot_data.append({'Configuration': label, 'Attack': 'T5 Paraphrase', 'Z-Score': z})
 
     df_plot = pd.DataFrame(plot_data)
     
-    # --- Plotting ---
     print("  Generating attack comparison plot...")
     sns.set_theme(style="ticks")
     plt.figure(figsize=(15, 7))
 
-    # Boxplot comparing Original vs Attacks for each configuration
     sns.boxplot(
         data=df_plot, 
         x='Configuration', 
         y='Z-Score', 
         hue='Attack',
-        palette='viridis', # Choose a suitable palette
-        showfliers=False # Hide outliers for clarity
+        palette='viridis', 
+        showfliers=False
     )
     
-    # Add detection threshold line
-    z_score_threshold = norm.ppf(0.005) # p = 0.005
+    z_score_threshold = norm.ppf(0.005)
     plt.axhline(y=z_score_threshold, color='red', linestyle='--', label=f'Detection Threshold (p = 0.005)')
 
     plt.title('Watermark Detection Z-Scores Before and After Attacks')

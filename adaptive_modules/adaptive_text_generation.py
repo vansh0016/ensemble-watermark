@@ -17,7 +17,6 @@ try:
     GROUP_0_CLASSES = set(shared.classes[:4]) 
     GROUP_1_CLASSES = set(shared.classes[4:8]) 
     
-    # Load the masks created during setup
     GROUP_0_MASK = shared.GROUP_0_MASK
     GROUP_1_MASK = shared.GROUP_1_MASK
     print("  Successfully loaded sensorimotor masks from shared module.")
@@ -29,17 +28,6 @@ except Exception as e:
     print(f"  FATAL ERROR loading masks: {e}")
     import sys
     sys.exit(1)
-
-def get_reply_from_output_ids(output_ids, state=None, starting_from=0):
-    """Decodes the output IDs into a string."""
-    reply = shared.tokenizer.decode(output_ids[starting_from:], skip_special_tokens=state['skip_special_tokens'] if state else True, clean_up_tokenization_spaces=False)
-    if (hasattr(shared.tokenizer, 'convert_ids_to_tokens') and len(output_ids) > starting_from) and not reply.startswith(' '):
-        first_token = shared.tokenizer.convert_ids_to_tokens(int(output_ids[starting_from]))
-        if isinstance(first_token, (bytes,)):
-            first_token = first_token.decode('utf8')
-        if first_token.startswith(' '):
-            reply = ' ' + reply
-    return reply
 
 def get_max_prompt_length(state):
     return state['truncation_length'] - state['max_new_tokens']
@@ -147,11 +135,9 @@ def get_sensorimotor_bias(current_bit, delta, device, vocab_size):
     bias_tensor = torch.zeros(vocab_size, device=device)
     
     if current_bit == 0:
-        # Embed a "0": Push towards Group 0, Pull from Group 1
         bias_tensor[GROUP_0_MASK] += delta
         bias_tensor[GROUP_1_MASK] -= delta
     elif current_bit == 1:
-        # Embed a "1": Push towards Group 1, Pull from Group 0
         bias_tensor[GROUP_0_MASK] -= delta
         bias_tensor[GROUP_1_MASK] += delta
         
@@ -196,9 +182,7 @@ def boost_tokens_with_adaptive_delta(input_ids, scores, **kwargs):
 def generate_reply(question, state, message_bits=None, eos_token=None, stopping_strings=None):
     """
     Main generation function.
-    FIXED: 'is_seq_seq' bug and added 'attention_mask'.
-    """
-    
+    """    
     clear_torch_cache()
     done = False
     seed = set_manual_seed(state['seed'])
@@ -208,7 +192,6 @@ def generate_reply(question, state, message_bits=None, eos_token=None, stopping_
         'message_bits': message_bits if message_bits is not None else []
     }
 
-    # Removed 'seed' from this list to fix the ValueError
     for k in ['max_new_tokens', 'temperature', 'top_p', 'top_k', 'repetition_penalty', 'do_sample']:
         if k in state and state[k] is not None:
             generate_params[k] = state[k]
@@ -237,13 +220,12 @@ def generate_reply(question, state, message_bits=None, eos_token=None, stopping_
     generate_params['stopping_criteria'].append(_StopEverythingStoppingCriteria())
     generate_params.update({"logits_processor": transformers.LogitsProcessorList([boost_tokens_with_adaptive_delta])})
 
-    reply = ""
+    full_generated_text = ""
     try:
         def generate_with_callback(callback=None, *args, **kwargs):
             kwargs['stopping_criteria'].append(Stream(callback_func=callback))
             clear_torch_cache()
             with torch.no_grad():
-                # Pass pad_token_id here
                 shared.model.generate(**kwargs, pad_token_id=shared.tokenizer.eos_token_id)
 
         def generate_with_streaming(**kwargs):
@@ -258,13 +240,13 @@ def generate_reply(question, state, message_bits=None, eos_token=None, stopping_
                     done = True
                     break
                 
-                new_content = get_reply_from_output_ids(output, state, starting_from=starting_from)
-                
-                if chr(0xfffd) in new_content:
-                    continue
+                full_generated_text = decode(
+                    output[starting_from:], 
+                    state['skip_special_tokens'] if state else True
+                )
 
-                reply += new_content
-                starting_from = len(output)
+                if chr(0xfffd) in full_generated_text[-1:]:
+                    continue
 
     except Exception:
         done = True
@@ -278,6 +260,6 @@ def generate_reply(question, state, message_bits=None, eos_token=None, stopping_
                 except: st = [str(st)]
             if type(st) is list and len(st) > 0:
                 all_stop_strings += st
-
-        reply, stop_found = apply_stopping_strings(reply, all_stop_strings)
+        
+        reply, stop_found = apply_stopping_strings(full_generated_text, all_stop_strings)
         return reply, done

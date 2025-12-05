@@ -83,10 +83,8 @@ def calculate_z_score(reply, original_message_bits):
             continue
             
         num_opportunities += 1
-        
         bit_index = token_hash(last_token) % message_len
         expected_bit = original_message_bits[bit_index]
-        
         is_hit = (expected_bit == 0 and is_group_0) or (expected_bit == 1 and is_group_1)
         hits.append(is_hit)
         

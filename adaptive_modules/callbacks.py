@@ -11,7 +11,7 @@ import adaptive_modules.shared as shared
 class StopNowException(Exception):
     pass
 
-# Copied from https://github.com/PygmalionAI/gradio-ui/
+# Adapted from https://github.com/PygmalionAI/gradio-ui/
 class _StopEverythingStoppingCriteria(transformers.StoppingCriteria):
     def __init__(self):
         transformers.StoppingCriteria.__init__(self)

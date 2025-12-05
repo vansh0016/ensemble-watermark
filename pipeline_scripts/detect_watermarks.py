@@ -9,39 +9,29 @@ import modules.shared as shared
 import torch
 import torch.nn.functional as F
 
-# === Parameters ===
 GENERATION_FILE_PATH = os.environ.get('GENERATION_FILE_PATH', 'outputs/generation_results.json')
 DETECTION_FILE_PATH = os.environ.get('DETECTION_FILE_PATH', 'outputs/detection_results.json')
-# ---
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"  Detection script using device: {device}")
 
-# Load dependencies from shared module (populated by setup_and_load.py)
+# Load dependencies from shared module
 nlp = shared.nlp
 df_sensorimotor = shared.sensorimotor
 classes_list = shared.classes
-
-# --- BUG FIX ---
-# The original notebook had:
-# tokenizer_opt = shared.model
-# model_opt = shared.tokenizer
-# This is corrected to:
 tokenizer_opt = shared.tokenizer
 model_opt = shared.model
-# --- END BUG FIX ---
 
 print("  Loading sensorimotor frequency data 'updated_word_frequencies_with_percent.csv'...")
 try:
     df_freq = pd.read_csv('updated_word_frequencies_with_percent.csv', header=0)
-    # Populate sensorimotor dict with uppercase words
     shared.sensorimotor_freq = df_freq.set_index('Word').T.to_dict('dict')
 except FileNotFoundError:
     print("  ERROR: 'updated_word_frequencies_with_percent.csv' not found. Detection may be inaccurate.")
-    df_freq = pd.DataFrame(columns=['Word', 'Dominant.sensorimotor', 'Word_Percent']) # Create empty df
+    df_freq = pd.DataFrame(columns=['Word', 'Dominant.sensorimotor', 'Word_Percent'])
     shared.sensorimotor_freq = {}
 
-# Define Sensorimotor Classes and Statistics (from notebook)
+# Sensorimotor Classes and Statistics from notebook
 classes_mean_names = [
     'Auditory.mean', 'Gustatory.mean', 'Haptic.mean', 'Interoceptive.mean',
     'Olfactory.mean', 'Visual.mean', 'Foot_leg.mean', 'Hand_arm.mean',
@@ -65,7 +55,6 @@ def compute_p_class(df, classes):
 p_class_dict = compute_p_class(df_freq, classes_list)
 print(f"  p_class_dict computed: {p_class_dict}")
 
-# Utility Functions (from notebook)
 def split_into_sentences(text):
     doc = nlp(text)
     return [sent.text.strip() for sent in doc.sents]
@@ -103,7 +92,7 @@ def calculate_perplexity(text, model, tokenizer):
         return perplexity
     except Exception as e:
         print(f"    ERROR calculating perplexity: {e}")
-        return 0.0 # Return 0 on failure
+        return 0.0
 
 def calculate_probs(reply):
     shared.secret_key = [0, 0]
@@ -116,7 +105,7 @@ def calculate_probs(reply):
     total_words = 0
     correct_words = 0
     
-    if not reply: # Handle empty/None replies
+    if not reply:
         return 1.0, 1.0, 1.0, 1.0, 0, 0, 0, 0, 0, sensorimotor_matches_per_class
 
     tokenizer = shared.tokenizer
@@ -144,8 +133,6 @@ def calculate_probs(reply):
                 if actual_start == expected_start:
                     correct_acrosticons += 1
             
-            # Note: Your notebook logic for sensorimotor seems to skip the first word if it's an acrostic check
-            # Replicating that logic here (else block)
             else:
                 if 0 <= sensorimotor_class_idx < len(classes_list):
                     selected_class_mean_name = classes_mean_names[sensorimotor_class_idx]
@@ -153,12 +140,10 @@ def calculate_probs(reply):
                     word_upper = word.strip().upper()
 
                     if word_upper in shared.sensorimotor_freq:
-                        # Check dominant class match
                         if shared.sensorimotor_freq[word_upper]["Dominant.sensorimotor"] == selected_class:
                             sensorimotor_matches_per_class[selected_class] += 1
                             sensorimotor_matches += 1
                         
-                        # Get mean value for z-score (from the *other* CSV)
                         if word_upper in df_sensorimotor:
                              word_mean = df_sensorimotor[word_upper][selected_class_mean_name]
                              word_z = (word_mean - mean_value[sensorimotor_class_idx]) / std_deviation[sensorimotor_class_idx]
@@ -169,10 +154,9 @@ def calculate_probs(reply):
                         correct_words += 1
                         sensorimotor_total_per_class[selected_class] += 1
 
-            sensorimotor_hash = secure_hash_for_word(word, 0, 10) # 0-10 = 11 classes
-            sensorimotor_class_idx = sensorimotor_hash # Update for next word
+            sensorimotor_hash = secure_hash_for_word(word, 0, 10)
+            sensorimotor_class_idx = sensorimotor_hash
 
-            # Redgreen Watermark
             if token_idx < T:
                 last_token = tokens[token_idx]
                 current_token = tokens[token_idx + 1]
@@ -194,14 +178,10 @@ def calculate_probs(reply):
         sentence_hash = secure_hash_for_sentence(sentence, 0, 25)
         shared.secret_key[1] = sentence_hash
 
-    # --- Calculate Probabilities ---
     num_acrostic_checks = len(sentences) - 1 if len(sentences) > 1 else 0
     acrostic_prob = binom.sf(correct_acrosticons - 1, num_acrostic_checks, 1/26) if num_acrostic_checks > 0 else 1.0
-
-    # Sensorimotor prob (using simplified P(X >= k) from notebook)
     sensorimotor_prob = binom.sf(sensorimotor_matches - 1, correct_words, 1/len(classes_list)) if correct_words > 0 else 1.0
     
-    # Redgreen prob
     if T > 0:
         expected_in_green = gamma * T
         variance = T * gamma * (1 - gamma)
@@ -216,8 +196,6 @@ def calculate_probs(reply):
             correct_acrosticons, total_words, correct_words, sensorimotor_matches,
             sensorimotor_matches_per_class)
 
-
-# --- Main Detection Loop ---
 print(f"  Loading generated text from '{GENERATION_FILE_PATH}'...")
 try:
     with open(GENERATION_FILE_PATH, 'r', encoding='utf-8') as f:
@@ -225,10 +203,10 @@ try:
     print(f"  Successfully loaded {len(generated_data)} samples.")
 except FileNotFoundError:
     print(f"  ERROR: Cannot find '{GENERATION_FILE_PATH}'. Stopping detection.")
-    generated_data = [] # Exit gracefully
+    generated_data = []
 except json.JSONDecodeError:
     print(f"  ERROR: Could not decode JSON from '{GENERATION_FILE_PATH}'. Stopping detection.")
-    generated_data = [] # Exit gracefully
+    generated_data = []
 
 detection_results = []
 print("  Starting detection and perplexity loop...")
@@ -239,7 +217,6 @@ for idx, sample in enumerate(generated_data, start=1):
     
     sample_detection = {'prompt': prompt, 'outputs': {}, 'detection': {}}
     
-    # Iterate through each key (baseline, llm_baseline, llm_senso_medium, etc.)
     for key, text in sample.items():
         if key == 'prompt':
             continue

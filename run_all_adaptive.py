@@ -6,10 +6,14 @@ import gc
 
 CONFIG = {
     "SCRIPT_DIR": "adaptive_pipeline",
-    "OUTPUT_DIR": "self_sync_outputs",
+    "OUTPUT_DIR": "self_sync_outputs_Llama-3B",
+    # "OUTPUT_DIR": "self_sync_outputs",
+    # "OUTPUT_DIR": "self_sync_outputs_Mistral7B",
     "NUM_SAMPLES": 50, 
     "SECRET_KEY_BITS": 40,
-    "MODEL_NAME": "Meta-Llama-3.1-8B-Instruct-GPTQ-INT4",
+    "MODEL_NAME": "Llama-3.2-3B-Instruct",
+    # "MODEL_NAME": "Llama-3.2-8B",
+    # "MODEL_NAME": "Mistral-7B",
     
     "T5_REPLACE_PERCENTAGE": 0.15,
     "T5_BATCH_SIZE": 4,

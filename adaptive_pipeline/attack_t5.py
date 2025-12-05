@@ -8,9 +8,7 @@ from tqdm import tqdm
 import os
 import adaptive_modules.shared as shared
 
-# Input file
 GENERATION_FILE_PATH = os.environ.get('GENERATION_FILE_PATH', 'adaptive_outputs/generation_results.json')
-# Output file
 ATTACK_T5_OUTPUT_FILE = os.environ.get('ATTACK_T5_OUTPUT_FILE', 'adaptive_outputs/attacked_t5.json')
 REPLACE_PERCENTAGE = float(os.environ.get('T5_REPLACE_PERCENTAGE', 0.10))
 BATCH_SIZE = int(os.environ.get('T5_BATCH_SIZE', 8))
@@ -31,7 +29,6 @@ except Exception as e:
     with open(ATTACK_T5_OUTPUT_FILE, 'w') as f: json.dump([], f)
     exit()
 
-# Function to reconstruct text from words & handle punctuation
 def reconstruct_text(words):
     text = ''
     for i, word in enumerate(words):
@@ -84,7 +81,6 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
             
             current_iter = 0
             
-            # Process in batches
             for batch_start in range(0, len(available_indices), BATCH_SIZE):
                 if successful_replacements >= epsilon_T: break
                 
@@ -97,7 +93,6 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
                     current_iter+=1
 
                     original_word = words[word_idx]
-                    # Skip punctuation or very short words
                     if not original_word or not original_word[0].isalnum() or len(original_word) < 2:
                         processed_indices.add(word_idx)
                         continue
@@ -112,7 +107,6 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
 
                 if not batch_input_texts: continue
 
-                # Generate replacements
                 inputs = tokenizer_t5(batch_input_texts, return_tensors='pt', padding=True, truncation=True).to(device)
                 
                 with torch.no_grad():

@@ -5,10 +5,8 @@ import modules.shared as shared
 from modules.text_generation import generate_reply
 import os
 
-# === Parameters ===
 GENERATION_FILE_PATH = os.environ.get('GENERATION_FILE_PATH', 'outputs/generation_results.json')
 PROMPT_FILE = "c4_prompts.json" 
-# ---
 
 print(f"  Loading fixed prompt dataset from '{PROMPT_FILE}'...")
 try:
@@ -16,7 +14,6 @@ try:
         c4_random_samples = json.load(f)
     print(f"  Successfully loaded {len(c4_random_samples)} prompts.")
     
-    # Slice the list based on NUM_SAMPLES from the run_all.py environment
     NUM_SAMPLES = int(os.environ.get('NUM_SAMPLES', len(c4_random_samples)))
     c4_random_samples = c4_random_samples[:NUM_SAMPLES]
     print(f"  Using {len(c4_random_samples)} samples for this run.")
@@ -28,7 +25,6 @@ except Exception as e:
     print(f"  ERROR loading {PROMPT_FILE}: {e}")
     raise
 
-# --- UPDATED: Define all three feature levels ---
 feature_levels = {
     'weak':   {'delta_senso': 1.0, 'delta_acro': 10.0, 'delta_redgreen': 1.0},
     'medium': {'delta_senso': 2.5, 'delta_acro': 20.0, 'delta_redgreen': 2.0},
@@ -36,13 +32,11 @@ feature_levels = {
 }
 print(f"  Generating for {list(feature_levels.keys())} delta levels.")
 
-# --- UPDATED: Configurations will now be built dynamically ---
 configurations = {
     'baseline': {'type': 'baseline'},
     'llm_baseline': {'type': 'llm', 'delta_senso': 0.0, 'delta_acro': 0.0, 'delta_redgreen': 0.0}
 }
 
-# Loop through each level and add all 7 watermark configs for that level
 for level_name, levels in feature_levels.items():
     configurations.update({
         f'llm_senso_{level_name}': {'type': 'llm', 'delta_senso': levels['delta_senso'], 'delta_acro': 0.0, 'delta_redgreen': 0.0},
@@ -56,7 +50,6 @@ for level_name, levels in feature_levels.items():
 
 print(f"  Total configurations to generate per sample: {len(configurations)}")
 
-# (The generate_replies function remains the same)
 def generate_replies(sample, config, generate_params):
     if config['type'] == 'baseline':
         return sample['baseline']
@@ -89,7 +82,6 @@ for i, sample in enumerate(c4_random_samples, start=1):
     
     for config_name, config in configurations.items():
         try:
-            # print(f"      Generating: {config_name}") # Uncomment for verbose debugging
             reply = generate_replies(sample, config, generate_params)
             sample_result[config_name] = reply
         except Exception as e:

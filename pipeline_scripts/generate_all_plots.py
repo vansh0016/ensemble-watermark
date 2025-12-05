@@ -10,18 +10,13 @@ import sys
 from itertools import combinations
 from statsmodels.sandbox.stats.multicomp import multipletests
 
-# === Parameters ===
 DETECTION_FILE = os.environ.get('DETECTION_FILE_PATH', 'outputs/detection_results.json')
-# Output files for the plots
 PLOT_BOXPLOT_PATH_PREFIX = os.environ.get('PLOT_BOXPLOT_PATH_PREFIX', 'outputs/results_boxplot')
 PLOT_HEATMAP_PATH = os.environ.get('PLOT_HEATMAP_PATH', 'outputs/config_comparison_heatmap.png')
 PLOT_SCATTER_PATH = os.environ.get('PLOT_SCATTER_PATH', 'outputs/delta_tradeoff_scatter.png')
-# --- NEW PLOT ---
 PLOT_STEP_PLOT_PATH = os.environ.get('PLOT_STEP_PLOT_PATH', 'outputs/detection_rate_vs_sentences.png')
-ALPHA = 0.05 # Significance Level
-# ---
+ALPHA = 0.05
 
-# --- Helper Functions ---
 def load_detection_data_for_plotting(filepath):
     """Loads detection data and calculates z-score and perplexity increase."""
     try:
@@ -29,9 +24,8 @@ def load_detection_data_for_plotting(filepath):
     except FileNotFoundError: print(f"  ERROR: Could not find file: {filepath}"); return None
     except json.JSONDecodeError: print(f"  WARNING: Could not decode JSON from: {filepath}"); return None
     
-    results = {} # Will store lists of values for each config
-    # --- NEW ---
-    raw_sample_data = [] # For step plot
+    results = {} 
+    raw_sample_data = [] 
     
     for entry in data:
         detection = entry.get('detection', {})
@@ -65,7 +59,7 @@ def load_detection_data_for_plotting(filepath):
                          results[config]['pplx_increases'].append(float(increase))
             except: pass
 
-            # --- NEW: Get Num Sentences for Step Plot ---
+            # 3. Get Num Sentences for Step Plot
             num_sentences = scores.get('num_sentences')
             if not np.isnan(z_score) and num_sentences is not None:
                 raw_sample_data.append({
@@ -74,7 +68,7 @@ def load_detection_data_for_plotting(filepath):
                     'Num Sentences': int(num_sentences)
                 })
                 
-    return results, raw_sample_data # --- UPDATED RETURN ---
+    return results, raw_sample_data
 
 def prob_to_z_score(prob):
     if prob is None: return np.nan
@@ -85,7 +79,6 @@ def prob_to_z_score(prob):
         z = norm.ppf(prob); return np.clip(z, -10, 10)
     except: return np.nan
 
-# --- Configuration Names and Mappings ---
 config_name_mapping = {
     "baseline": ("Baseline", "Baseline"), "llm_baseline": ("LLM Baseline", "Baseline"),
     "llm_senso_weak": ("SENSO", "Weak Delta"), "llm_acro_weak": ("ACRO", "Weak Delta"),
@@ -104,15 +97,12 @@ config_name_mapping = {
 config_order_labels = ['Human', 'LLM Baseline', 'SENSO', 'ACRO', 'RedGreen', 'SENSO+ACRO', 'SENSO+RG', 'ACRO+RG', 'All Three']
 
 
-# --- Load and Process Data ---
 print(f"  Loading and processing detection data from '{DETECTION_FILE}'...")
-# --- UPDATED: Receive two variables ---
 plot_data, raw_sample_data = load_detection_data_for_plotting(DETECTION_FILE)
 if not plot_data:
     print("  ERROR: No data loaded. Exiting plotting script.")
     sys.exit(1)
 
-# Create a flattened DataFrame for plotting (for medians)
 flat_data = []
 for config_key, values in plot_data.items():
     if config_key not in config_name_mapping: continue
@@ -127,11 +117,10 @@ for config_key, values in plot_data.items():
         'Detection Rate (%)': detection_rate, 'Z-Scores': values['z_scores']
     })
 df_plot = pd.DataFrame(flat_data)
-# Fix for 'Baseline' label
 df_plot['Configuration'] = df_plot['Configuration'].replace('Baseline', 'Human')
 
 
-# --- 1. Generate Box Plots (One for each Delta Level) ---
+# 1. Generate Box Plots
 print("  Generating Z-Score Box Plots (per delta level)...")
 z_score_threshold = norm.ppf(0.005)
 delta_levels = ['Weak Delta', 'Medium Delta', 'Strong Delta']
@@ -145,7 +134,6 @@ for delta in delta_levels:
     if df_boxplot.empty:
         print(f"    Skipping box plot for {delta}: No data found.")
         continue
-    # (Plotting code remains the same as your version)
     plt.figure(figsize=(12, 7)); sns.set_theme(style="ticks")
     box = plt.boxplot([data for data in df_boxplot['Z-Scores'] if data],
                       labels=df_boxplot['Configuration'], patch_artist=True, medianprops=dict(color='black'))
@@ -165,8 +153,7 @@ for delta in delta_levels:
     print(f"    Boxplot saved to '{output_filename}'")
 
 
-# --- 2. Generate Config Comparison Heatmap (Medium Delta) ---
-# (This section remains the same as your version)
+# 2. Generate Config Comparison Heatmap (Medium Delta)
 print("  Generating Configuration Comparison Heatmap (Medium Delta)...")
 medium_z_data = {
     key: data['z_scores']
@@ -218,8 +205,7 @@ else:
     print("  Skipping configuration heatmap: No pairwise results calculated.")
 
 
-# --- 3. Generate Delta Trade-off Scatter Plot (All Deltas) ---
-# (This section is the same as your version, but with the typo fixed)
+# 3. Generate Delta Trade-off Scatter Plot (All Deltas)
 print("  Generating Delta Trade-off Scatter Plot...")
 df_scatter = df_plot[df_plot['Configuration'] != 'Human']  # Remove Human rows
 delta_levels_present = [lvl for lvl in df_scatter['Delta Level'].unique() if lvl != 'Baseline']
@@ -242,7 +228,6 @@ else:
     plt.figure(figsize=(16, 8)); plt.rcParams.update({'font.size': 14})
     sns.set_context("talk", font_scale=1.2); sns.set_style("ticks")
 
-    # --- TYPO FIX HERE ---
     scatter = sns.scatterplot(
         data=df_scatter, x='Median PPLX Increase', y='Median Z-Score', # <-- Fixed
         hue='Delta Level', style='Configuration',
@@ -252,8 +237,6 @@ else:
     )
     plt.title('Median Z-Score vs. Median Perplexity Increase by Delta Strength', fontsize=20)
     plt.xlabel('Median PPLX Increase (vs. LLM Baseline)', fontsize=16) # <-- Fixed
-    # --- END FIX ---
-    
     plt.ylabel('Median Z-Score (Lower is Better Detection)', fontsize=16)
     plt.axhline(y=norm.ppf(0.005), color='red', linestyle='--', label='Detection Threshold (p=0.005)')
     
@@ -267,32 +250,29 @@ else:
                               bbox_to_anchor=(1.03, 1), loc='upper left', borderaxespad=0.,
                               fontsize=12, title_fontsize=14)
     plt.gca().add_artist(first_legend)
-    # Corrected legend call
     plt.legend(style_handles_ordered, active_style_order, title='Configuration',
                bbox_to_anchor=(1.03, 0.65), loc='upper left', borderaxespad=0.,
                fontsize=12, title_fontsize=14)
 
     plt.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout(rect=[0, 0, 0.78, 1]) # Adjust right margin
-    plt.savefig(PLOT_SCATTER_PATH, dpi=300, bbox_inches='tight') # Use bbox_inches='tight'
+    plt.tight_layout(rect=[0, 0, 0.78, 1])
+    plt.savefig(PLOT_SCATTER_PATH, dpi=300, bbox_inches='tight')
     print(f"  Delta trade-off scatter plot saved to '{PLOT_SCATTER_PATH}'")
     plt.close()
 
-# --- 4. *** FINAL VERSION: INCLUDE BASELINE CURVE (exclude llm_baseline) *** ---
+# 4. Include Baseline Curve
 print("  Generating Detection Rate vs. Sentences Step Plot...")
 try:
     df_step_raw = pd.DataFrame(raw_sample_data)
     if df_step_raw.empty:
         raise ValueError("No raw sample data found for step plot.")
         
-    # Map readable labels
     df_step_raw['Configuration'] = df_step_raw['Config Key'].map(lambda x: config_name_mapping.get(x, ('', ''))[0])
     df_step_raw['Delta Level'] = df_step_raw['Config Key'].map(lambda x: config_name_mapping.get(x, ('', ''))[1])
     
     z_score_threshold = norm.ppf(0.005)
     df_step_raw['Detected'] = df_step_raw['Z-Score'] < z_score_threshold
 
-    # Exclude Human and llm_baseline entirely
     df_step_plot_data = df_step_raw[
         (df_step_raw['Configuration'] != 'Human') &
         (df_step_raw['Config Key'] != 'llm_baseline')
@@ -300,7 +280,6 @@ try:
     if df_step_plot_data.empty:
         raise ValueError("No watermark data found for step plot.")
 
-    # Aggregate detection rate
     df_agg = (
         df_step_plot_data.groupby(['Configuration', 'Delta Level', 'Num Sentences'])['Detected']
         .mean()
@@ -309,7 +288,6 @@ try:
         .sort_values(by='Num Sentences')
     )
 
-    # Extract the shared Baseline curve from raw JSON data
     baseline_df = df_step_raw[df_step_raw['Config Key'] == 'baseline']
     if baseline_df.empty:
         print("  WARNING: No baseline data found — skipping baseline curve.")
@@ -322,10 +300,7 @@ try:
             .rename(columns={'Detected': 'Detection Rate'})
         )
 
-    # Keep only the real watermark delta levels
     df_agg = df_agg[df_agg['Delta Level'].isin(['Weak Delta', 'Medium Delta', 'Strong Delta'])]
-
-    # Config order and color mapping
     plot_configs = [lbl for lbl in config_order_labels if lbl in df_agg['Configuration'].unique()]
     delta_colors = {
         'Weak Delta': '#6fd0ff',
@@ -341,7 +316,6 @@ try:
         ax = axes[idx]
         df_config = df_agg[df_agg['Configuration'] == config]
 
-        # --- Plot Weak, Medium, Strong ---
         for delta_label, color in delta_colors.items():
             df_line = df_config[df_config['Delta Level'] == delta_label]
             if not df_line.empty:
@@ -357,7 +331,6 @@ try:
                     all_handles.append(line)
                     all_labels.append(delta_label)
 
-        # --- Plot shared Baseline curve ---
         if baseline_curve is not None and not baseline_curve.empty:
             (base_line,) = ax.step(
                 baseline_curve['Num Sentences'],
@@ -372,7 +345,6 @@ try:
                 all_handles.append(base_line)
                 all_labels.append('Baseline')
 
-        # --- Formatting ---
         ax.set_title(config, fontsize=12, fontweight='bold')
         ax.set_xlim(0, df_agg['Num Sentences'].max() + 1)
         ax.set_ylim(0, 1.05)
@@ -386,11 +358,9 @@ try:
         else:
             ax.set_xlabel("")
 
-    # Hide unused axes
     for j in range(len(plot_configs), len(axes)):
         axes[j].axis("off")
 
-    # === Global Legend ===
     legend_labels = [
         lbl.replace("Delta", "Watermark Strength") if "Delta" in lbl else lbl
         for lbl in all_labels

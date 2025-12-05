@@ -1,4 +1,3 @@
-# pipeline_scripts/plot_t5_attack_results.py
 import json
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,14 +6,9 @@ import pandas as pd
 import seaborn as sns
 import os
 
-# === Parameters ===
-# Assumes run_all.py was run to create the original detection file
 DETECTION_ORIGINAL_FILE = os.environ.get('DETECTION_ORIGINAL_FILE', 'outputs/detection_results.json')
-# This file is created by the T5 attack pipeline steps
 DETECTION_ATTACK_T5_FILE = os.environ.get('DETECTION_ATTACK_T5_FILE', 'outputs/detection_results_attack_t5.json')
-# Output plot file
 PLOT_T5_ATTACK_OUTPUT_PATH = os.environ.get('PLOT_T5_ATTACK_OUTPUT_PATH', 'outputs/t5_attack_results_plot.png')
-# ---
 
 def load_detection_data(filepath):
     """Loads detection data and converts final_scores to z-scores."""
@@ -37,7 +31,6 @@ def load_detection_data(filepath):
             if final_score is not None:
                 z_score = prob_to_z_score(final_score)
                 if config not in results: results[config] = []
-                # Ensure z_score is a standard float, handle potential numpy types
                 if not np.isnan(z_score):
                      results[config].append(float(z_score))
     return results
@@ -50,10 +43,9 @@ def prob_to_z_score(prob):
         if prob <= 0: prob = 1e-12
         elif prob >= 1: prob = 1 - 1e-12
         z = norm.ppf(prob)
-        # Cap z-scores at reasonable bounds if needed, e.g., -10 to 10
         return np.clip(z, -10, 10)
     except (ValueError, TypeError):
-        return np.nan # Return NaN if conversion fails
+        return np.nan
 
 print("  Loading detection results for T5 comparison...")
 original_z_scores = load_detection_data(DETECTION_ORIGINAL_FILE)
@@ -62,7 +54,6 @@ t5_z_scores = load_detection_data(DETECTION_ATTACK_T5_FILE)
 if not original_z_scores or not t5_z_scores:
     print("  ERROR: Cannot generate plot. Missing original or T5 attack detection results.")
 else:
-    # --- Data Preparation for Plotting ---
     plot_data = []
     config_name_mapping = {
         "baseline": "Human",
@@ -86,13 +77,11 @@ else:
 
         label = config_name_mapping.get(config, config)
 
-        # Original
         original_scores = original_z_scores.get(config, [])
         for z in original_scores:
             if not np.isnan(z):
                 plot_data.append({'Configuration': label, 'Attack': 'Original', 'Z-Score': z})
 
-        # T5 Attack
         t5_scores = t5_z_scores.get(config, [])
         for z in t5_scores:
              if not np.isnan(z):
@@ -103,22 +92,20 @@ else:
     else:
         df_plot = pd.DataFrame(plot_data)
 
-        # --- Plotting ---
         print("  Generating T5 attack comparison plot...")
         sns.set_theme(style="ticks")
         plt.figure(figsize=(14, 7))
 
-        # Boxplot comparing Original vs T5 Attack
         sns.boxplot(
             data=df_plot,
             x='Configuration',
             y='Z-Score',
             hue='Attack',
-            palette={'Original': '#ADD8E6', 'T5 Paraphrase': '#FFB6C1'}, # Example: Light Blue, Light Pink
-            showfliers=False # Hide outliers for clarity
+            palette={'Original': '#ADD8E6', 'T5 Paraphrase': '#FFB6C1'},
+            showfliers=False
         )
 
-        z_score_threshold = norm.ppf(0.005) # p = 0.005
+        z_score_threshold = norm.ppf(0.005)
         plt.axhline(y=z_score_threshold, color='red', linestyle='--', label=f'Detection Threshold (p = 0.005)')
 
         plt.title('Watermark Detection Z-Scores Before and After T5 Paraphrase Attack')

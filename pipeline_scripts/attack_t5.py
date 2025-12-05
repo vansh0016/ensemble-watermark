@@ -4,19 +4,15 @@ import random
 import math
 import torch
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from tqdm import tqdm # Use tqdm for progress bar
+from tqdm import tqdm
 import os
-import modules.shared as shared # Access shared resources like device
+import modules.shared as shared
 
-# === Parameters ===
-# Input file (generated text)
 GENERATION_FILE_PATH = os.environ.get('GENERATION_FILE_PATH', 'outputs/generation_results.json')
-# Output file (T5 paraphrased text)
 ATTACK_T5_OUTPUT_FILE = os.environ.get('ATTACK_T5_OUTPUT_FILE', 'outputs/attacked_t5.json')
 REPLACE_PERCENTAGE = float(os.environ.get('T5_REPLACE_PERCENTAGE', 0.10)) # Default 10%
 BATCH_SIZE = int(os.environ.get('T5_BATCH_SIZE', 8))
-MAX_ITER_MULTIPLIER = 5 # To prevent infinite loops for small texts
-# ---
+MAX_ITER_MULTIPLIER = 5
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"  T5 Attack using device: {device}")
@@ -26,21 +22,17 @@ try:
     tokenizer_t5 = T5Tokenizer.from_pretrained('t5-base')
     model_t5 = T5ForConditionalGeneration.from_pretrained('t5-base')
     model_t5.to(device)
-    model_t5.eval() # Set model to evaluation mode
+    model_t5.eval()
     print("  T5 model loaded.")
 except Exception as e:
     print(f"  ERROR loading T5 model: {e}. Stopping T5 attack.")
-    # Exit gracefully if T5 can't load
-    # You might want to create an empty output file here if needed downstream
     with open(ATTACK_T5_OUTPUT_FILE, 'w') as f: json.dump([], f)
     exit()
 
-# Function to reconstruct text from words (handle punctuation)
 def reconstruct_text(words):
     text = ''
     for i, word in enumerate(words):
         if i > 0:
-            # Add space unless current or previous is punctuation that doesn't need it
             prev_word = words[i-1]
             if word and prev_word and \
                word[0].isalnum() and prev_word[-1].isalnum():
@@ -65,7 +57,6 @@ except json.JSONDecodeError:
 processed_data = []
 print(f"  Starting T5 paraphrase attack (replace approx {REPLACE_PERCENTAGE*100:.0f}%)...")
 
-# Get keys to process (excluding prompt)
 keys_to_process = []
 if generated_data:
     keys_to_process = [k for k in generated_data[0].keys() if k != 'prompt']
@@ -74,16 +65,15 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
     new_sample = sample.copy()
     
     for field in keys_to_process:
-        if field in sample and sample[field]: # Check if field exists and is not empty
+        if field in sample and sample[field]:
             text = sample[field]
-            # Split text carefully preserving punctuation
             words = re.findall(r'\w+|[^\w\s]', text, re.UNICODE)
             T = len(words)
-            if T == 0: continue # Skip empty text
+            if T == 0: continue
 
             epsilon_T = max(1, math.ceil(REPLACE_PERCENTAGE * T))
             successful_replacements = 0
-            max_iterations = max(MAX_ITER_MULTIPLIER * epsilon_T, T*2) # Ensure enough iterations
+            max_iterations = max(MAX_ITER_MULTIPLIER * epsilon_T, T*2)
             
             processed_indices = set()
             available_indices = list(range(T))
@@ -91,20 +81,18 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
             
             current_iter = 0
             
-            # Process in batches
             for batch_start in range(0, len(available_indices), BATCH_SIZE):
                 if successful_replacements >= epsilon_T: break
                 
                 batch_indices = available_indices[batch_start : batch_start + BATCH_SIZE]
                 batch_input_texts = []
-                batch_word_indices_map = {} # Map input index to original word index
+                batch_word_indices_map = {}
 
                 for i, word_idx in enumerate(batch_indices):
                     if word_idx in processed_indices or current_iter >= max_iterations: continue
                     current_iter+=1
 
                     original_word = words[word_idx]
-                    # Skip punctuation or very short words
                     if not original_word or not original_word[0].isalnum() or len(original_word) < 2:
                         processed_indices.add(word_idx)
                         continue
@@ -112,50 +100,44 @@ for sample_idx, sample in enumerate(tqdm(generated_data, desc="  T5 Paraphrasing
                     words_masked = words[:word_idx] + ['<extra_id_0>'] + words[word_idx+1:]
                     masked_text = reconstruct_text(words_masked)
                     
-                    # T5 expects a prefix for fill-mask task
                     input_text = f"fill mask: {masked_text}" 
                     batch_input_texts.append(input_text)
                     batch_word_indices_map[len(batch_input_texts)-1] = word_idx
-                    processed_indices.add(word_idx) # Mark as processed
+                    processed_indices.add(word_idx)
 
                 if not batch_input_texts: continue
 
-                # Generate replacements
                 inputs = tokenizer_t5(batch_input_texts, return_tensors='pt', padding=True, truncation=True).to(device)
                 
                 with torch.no_grad():
                     outputs = model_t5.generate(
                         **inputs,
-                        max_length=10, # Short max length for single word replacement
+                        max_length=10,
                         num_beams=5,
                         num_return_sequences=3,
                         early_stopping=True
                     )
 
-                # Decode and replace
                 decoded_outputs = tokenizer_t5.batch_decode(outputs, skip_special_tokens=True)
                 
                 output_idx = 0
                 for i in range(len(batch_input_texts)):
-                    if i not in batch_word_indices_map: continue # Skip if this input was invalid
+                    if i not in batch_word_indices_map: continue
 
                     word_idx = batch_word_indices_map[i]
                     original_word = words[word_idx]
                     
                     found_replacement = False
-                    # Check the generated sequences for a valid replacement
-                    for k in range(3): # num_return_sequences
+                    for k in range(3):
                         replacement = decoded_outputs[output_idx + k].strip()
-                        # Simple check: non-empty, different from original, seems like a single word
                         if replacement and replacement.lower() != original_word.lower() and ' ' not in replacement:
                             words[word_idx] = replacement
                             successful_replacements += 1
                             found_replacement = True
-                            break # Found one, move to next word
-                    output_idx += 3 # Move index to next set of sequences
+                            break
+                    output_idx += 3
                     if successful_replacements >= epsilon_T: break
 
-            # Reconstruct final text
             final_text = reconstruct_text(words)
             new_sample[field] = final_text
 
@@ -169,7 +151,6 @@ try:
 except Exception as e:
     print(f"  ERROR saving T5 attack results: {e}")
 
-# Clean up T5 model memory
 del model_t5
 del tokenizer_t5
 gc.collect()

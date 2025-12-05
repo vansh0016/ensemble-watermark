@@ -1,4 +1,3 @@
-# pipeline_scripts/analyze_attack_effects.py
 import json
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,26 +5,18 @@ from scipy.stats import norm, mannwhitneyu
 import pandas as pd
 import seaborn as sns
 import os
-from itertools import product, combinations # Added combinations
-from statsmodels.sandbox.stats.multicomp import multipletests # For p-value correction
+from itertools import product, combinations
+from statsmodels.sandbox.stats.multicomp import multipletests
 
-# === Parameters ===
-# Input Files (Detection results)
-# We primarily need the ORIGINAL results for the new heatmap
 DETECTION_ORIGINAL_FILE = os.environ.get('DETECTION_ORIGINAL_FILE', 'outputs/detection_results.json')
-# Keep attacked files for the scatter plot
 DETECTION_ATTACK_TRANSLATION_FILE = os.environ.get('DETECTION_ATTACK_TRANSLATION_FILE', 'outputs/detection_results_attack_translation.json')
 DETECTION_ATTACK_T5_FILE = os.environ.get('DETECTION_ATTACK_T5_FILE', 'outputs/detection_results_attack_t5.json')
 
-# Output Plot Files
-# Renamed heatmap output file
 PLOT_CONFIG_COMPARISON_HEATMAP_PATH = os.environ.get('PLOT_CONFIG_COMPARISON_HEATMAP_PATH', 'outputs/config_comparison_heatmap.png')
 PLOT_TRADEOFF_SCATTER_PATH = os.environ.get('PLOT_TRADEOFF_SCATTER_PATH', 'outputs/attack_tradeoff_scatter.png')
-ALPHA = 0.05 # Significance Level for heatmap
-# ---
+ALPHA = 0.05
 
-# --- Helper Functions ---
-# (load_detection_data and prob_to_z_score remain the same)
+
 def load_detection_data(filepath, data_type='z-score'):
     try:
         with open(filepath, 'r') as f: data = json.load(f)
@@ -65,7 +56,6 @@ def prob_to_z_score(prob):
         z = norm.ppf(prob); return np.clip(z, -10, 10)
     except: return np.nan
 
-# --- Configuration Names and Order ---
 config_name_mapping = {
     "baseline": "Human", "llm_baseline": "LLM Baseline",
     "llm_senso_medium": "Senso", "llm_acro_medium": "Acro", "llm_redgreen_medium": "Red-Green",
@@ -79,32 +69,26 @@ config_order = [
 ordered_keys = [c for c in config_order if c in config_name_mapping]
 ordered_labels = [config_name_mapping[c] for c in ordered_keys]
 
-
-# --- Load Data ---
 print("  Loading detection data for analysis...")
 original_z = load_detection_data(DETECTION_ORIGINAL_FILE, 'z-score')
-trans_z = load_detection_data(DETECTION_ATTACK_TRANSLATION_FILE, 'z-score') # Still needed for scatter
-t5_z = load_detection_data(DETECTION_ATTACK_T5_FILE, 'z-score')             # Still needed for scatter
-original_pplx_inc = load_detection_data(DETECTION_ORIGINAL_FILE, 'perplexity_increase') # Still needed for scatter
-trans_pplx_inc = load_detection_data(DETECTION_ATTACK_TRANSLATION_FILE, 'perplexity_increase') # Still needed for scatter
-t5_pplx_inc = load_detection_data(DETECTION_ATTACK_T5_FILE, 'perplexity_increase')             # Still needed for scatter
-
+trans_z = load_detection_data(DETECTION_ATTACK_TRANSLATION_FILE, 'z-score')
+t5_z = load_detection_data(DETECTION_ATTACK_T5_FILE, 'z-score')
+original_pplx_inc = load_detection_data(DETECTION_ORIGINAL_FILE, 'perplexity_increase')
+trans_pplx_inc = load_detection_data(DETECTION_ATTACK_TRANSLATION_FILE, 'perplexity_increase')
+t5_pplx_inc = load_detection_data(DETECTION_ATTACK_T5_FILE, 'perplexity_increase')
 if not original_z:
     print("  ERROR: Cannot proceed without original Z-score data for heatmap.")
     exit()
 
-# --- 1. *** UPDATED *** Heatmap: Pairwise Configuration Comparison (using Original Z-scores) ---
+# 1. Configuration Comparison Heatmap
 print("  Performing pairwise Mann-Whitney U tests between configurations (using original data)...")
 pairwise_results = []
-# Use 'ordered_keys' which correspond to the keys in original_z dictionary
 config_pairs = list(combinations(ordered_keys, 2))
 
 for (config1_key, config2_key) in config_pairs:
-    # Get Z-score data for the two configurations from the original (unattacked) results
     data1 = original_z.get(config1_key, [])
     data2 = original_z.get(config2_key, [])
 
-    # Ensure we have enough data points for the test
     if len(data1) > 1 and len(data2) > 1:
         try:
             stat, p_value = mannwhitneyu(data1, data2, alternative='two-sided')
@@ -113,15 +97,13 @@ for (config1_key, config2_key) in config_pairs:
                 'config2': config2_key,
                 'p_value': p_value
             })
-        except ValueError as e: # Handle cases like identical data
+        except ValueError as e:
              print(f"    Skipping test between {config1_key} and {config2_key}: {e}")
              pairwise_results.append({'config1': config1_key, 'config2': config2_key, 'p_value': 1.0})
     else:
-        # Append NaN if not enough data for one or both configs
          pairwise_results.append({'config1': config1_key, 'config2': config2_key, 'p_value': np.nan})
 
 if pairwise_results:
-    # --- Apply Bonferroni Correction ---
     p_values_only = [res['p_value'] for res in pairwise_results if not np.isnan(res['p_value'])]
     if p_values_only:
         reject, pvals_corrected, _, _ = multipletests(p_values_only, method='bonferroni', alpha=ALPHA)
@@ -133,25 +115,22 @@ if pairwise_results:
     else:
         for res in pairwise_results: res['adjusted_p'] = res['p_value'] # Use raw p if correction failed
 
-    # --- Create DataFrame using 'ordered_labels' for index/columns ---
     p_value_matrix = pd.DataFrame(index=ordered_labels, columns=ordered_labels, dtype=float)
     p_value_matrix[:] = np.nan
 
     for res in pairwise_results:
-        # Map keys back to labels for DataFrame indexing
         label1 = config_name_mapping.get(res['config1'])
         label2 = config_name_mapping.get(res['config2'])
-        if label1 and label2: # Ensure labels exist
+        if label1 and label2:
             p_value_matrix.loc[label1, label2] = res['adjusted_p']
-            p_value_matrix.loc[label2, label1] = res['adjusted_p'] # Symmetric
+            p_value_matrix.loc[label2, label1] = res['adjusted_p']
 
-    np.fill_diagonal(p_value_matrix.values, np.nan) # Diagonal is NaN
+    np.fill_diagonal(p_value_matrix.values, np.nan)
 
-    # --- Generate Heatmap (using logic from your provided code) ---
     print("  Generating configuration comparison heatmap...")
     plt.figure(figsize=(10, 8))
-    sns.set_theme() # Use seaborn default theme
-    sns.set_style("ticks") # Explicitly set style
+    sns.set_theme()
+    sns.set_style("ticks")
 
     mask = np.isnan(p_value_matrix.values)
     sns.heatmap(
@@ -159,12 +138,10 @@ if pairwise_results:
         mask=mask,
         annot=True, fmt=".3f", cmap="viridis_r",
         linewidths=0.5,
-        # ax=plt.gca(), # Use default axis
         cbar_kws={'label': 'Adjusted p-value (Bonferroni)'},
-        vmin=0, vmax=1.0 # Set vmax to 1.0 for standard p-value range like your example
+        vmin=0, vmax=1.0
     )
     plt.title('Pairwise Comparison of Watermark Configurations (Original Z-Scores)\nMann-Whitney U Test with Bonferroni Correction')
-    # Match axis labels and rotation from your example
     plt.xlabel('')
     plt.ylabel('')
     plt.xticks(rotation=0, ha='center')
@@ -177,15 +154,13 @@ else:
     print("  Skipping configuration comparison heatmap: No pairwise results.")
 
 
-# --- 2. Trade-off Scatter Plot (Median Z-Score vs Median PPLX Increase) ---
-# (This section remains the same as before - generates the scatter plot using original + attacked data)
+# 2. Trade-off Scatter Plot
 print("  Calculating median values for trade-off scatter plot...")
 scatter_data = []
 conditions = {'Original': (original_z, original_pplx_inc),
               'Translation': (trans_z, trans_pplx_inc),
               'T5 Attack': (t5_z, t5_pplx_inc)}
 
-# Check if attack data exists before adding to conditions
 if not trans_z or not trans_pplx_inc:
     print("  Skipping Translation condition in scatter plot: Data missing.")
     conditions.pop('Translation', None)
@@ -198,7 +173,6 @@ for config_key in config_order:
     if config_key not in config_name_mapping or config_key in ['baseline', 'llm_baseline']: continue
     config_label = config_name_mapping[config_key]
     for condition, (z_data, pplx_inc_data) in conditions.items():
-        # Check if data exists for this specific condition and config
         if z_data and pplx_inc_data and config_key in z_data and config_key in pplx_inc_data:
             z_scores = z_data[config_key]; pplx_increases = pplx_inc_data[config_key]
             if z_scores and pplx_increases:

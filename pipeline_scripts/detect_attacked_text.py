@@ -8,24 +8,15 @@ import pandas as pd
 import modules.shared as shared
 import torch
 import torch.nn.functional as F
-import sys # Needed for exit
+import sys
 
-# === Parameters ===
-# Input file (e.g., attacked_translation.json or attacked_t5.json)
 ATTACKED_TEXT_FILE_PATH = os.environ.get('ATTACKED_TEXT_FILE_PATH', 'outputs/attacked_translation.json') 
-# Output file for detection results
 DETECTION_ATTACK_OUTPUT_FILE = os.environ.get('DETECTION_ATTACK_OUTPUT_FILE', 'outputs/detection_results_attack_translation.json')
-# ---
-
-# --- START: Standard Detection Code (mostly copied from detect_watermarks.py) ---
-# This includes device setup, loading shared resources, utility functions, 
-# compute_p_class, calculate_perplexity, and calculate_probs.
-# Ensure all necessary functions and variables are defined here or imported.
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"  Attack Detection script using device: {device}")
 
-# Load dependencies from shared module (populated by setup_and_load.py)
+# Load dependencies from shared module
 try:
     nlp = shared.nlp
     df_sensorimotor = shared.sensorimotor # From Lancaster CSV
@@ -34,19 +25,18 @@ try:
     model_opt = shared.model
 except AttributeError as e:
     print(f"  ERROR: Shared module not initialized properly (perhaps setup didn't run?). Missing attribute: {e}")
-    sys.exit(1) # Stop script if setup failed
+    sys.exit(1)
 
 print("  Loading sensorimotor frequency data 'updated_word_frequencies_with_percent.csv' for p_class...")
 try:
     df_freq = pd.read_csv('updated_word_frequencies_with_percent.csv', header=0)
-    # Populate sensorimotor dict with uppercase words
-    shared.sensorimotor_freq = df_freq.set_index('Word').T.to_dict('dict') # Use different name
+    shared.sensorimotor_freq = df_freq.set_index('Word').T.to_dict('dict')
 except FileNotFoundError:
     print("  ERROR: 'updated_word_frequencies_with_percent.csv' not found. Detection may be inaccurate.")
-    df_freq = pd.DataFrame(columns=['Word', 'Dominant.sensorimotor', 'Word_Percent']) # Create empty df
+    df_freq = pd.DataFrame(columns=['Word', 'Dominant.sensorimotor', 'Word_Percent'])
     shared.sensorimotor_freq = {}
 
-# Define Sensorimotor Classes and Statistics (from notebook)
+# Sensorimotor Classes and Statistics from notebook
 classes_mean_names = [
     'Auditory.mean', 'Gustatory.mean', 'Haptic.mean', 'Interoceptive.mean',
     'Olfactory.mean', 'Visual.mean', 'Foot_leg.mean', 'Hand_arm.mean',
@@ -59,7 +49,6 @@ shared.secret_key = [0, 0]
 def compute_p_class(df, classes):
     p_class_dict = {}
     total_word_percent = df['Word_Percent'].sum()
-    #print(f"  Total Word_Percent for p_class: {total_word_percent}")
     for cls in classes:
         class_word_percent = df[df['Dominant.sensorimotor'] == cls]['Word_Percent'].sum()
         p = class_word_percent / total_word_percent if total_word_percent > 0 else 0.0
@@ -67,9 +56,7 @@ def compute_p_class(df, classes):
     return p_class_dict
 
 p_class_dict = compute_p_class(df_freq, classes_list)
-#print(f"  p_class_dict computed: {p_class_dict}")
 
-# Utility Functions (from notebook)
 def split_into_sentences(text):
     if not text: return []
     doc = nlp(text)
@@ -81,12 +68,12 @@ def get_words_in_sentence(sentence):
     return [token.text for token in doc if not token.is_punct and not token.is_space]
 
 def secure_hash_for_word(word, range_min, range_max):
-    hashed_word_bytes = hashlib.sha256(str(word).encode('utf-8')).digest() # Ensure word is string
+    hashed_word_bytes = hashlib.sha256(str(word).encode('utf-8')).digest()
     hashed_word_int = int.from_bytes(hashed_word_bytes[:4], byteorder='big')
     return (hashed_word_int % (range_max - range_min + 1)) + range_min
 
 def secure_hash_for_sentence(sentence, range_min, range_max):
-    if not sentence: return range_min # Handle empty sentence
+    if not sentence: return range_min
     doc = nlp(sentence)
     core_sentence = [token.lemma_ for token in doc if not token.is_stop and not token.is_punct]
     core_sentence_str = " ".join(core_sentence)
@@ -95,10 +82,9 @@ def secure_hash_for_sentence(sentence, range_min, range_max):
     return (hashed_sentence_int % (range_max - range_min + 1)) + range_min
 
 def calculate_perplexity(text, model, tokenizer):
-    # This function is identical to the one in detect_watermarks.py
     if not text or not model or not tokenizer: return 0.0
     try:
-        inputs = tokenizer(text, return_tensors="pt", max_length=1024, truncation=True) # Added truncation
+        inputs = tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
         input_ids = inputs.input_ids.to(device)
         attention_mask = inputs.attention_mask.to(device)
 
@@ -107,15 +93,12 @@ def calculate_perplexity(text, model, tokenizer):
             loss = outputs.loss
         
         perplexity = torch.exp(loss).item()
-        # Handle potential inf/nan
         if math.isinf(perplexity) or math.isnan(perplexity): return 0.0 
         return perplexity
     except Exception as e:
-        #print(f"    WARNING calculating perplexity: {e}")
         return 0.0
 
 def calculate_probs(reply):
-    # This function is identical to the one in detect_watermarks.py
     shared.secret_key = [0, 0]
     z_scores = []
     probabilities = []
@@ -160,22 +143,18 @@ def calculate_probs(reply):
                 if actual_start == expected_start:
                     correct_acrosticons += 1
             
-            # Sensorimotor check (always happens, even on first word if not acrostic check)
             if 0 <= sensorimotor_class_idx < len(classes_list):
                 selected_class_mean_name = classes_mean_names[sensorimotor_class_idx]
                 selected_class = classes_list[sensorimotor_class_idx]
                 word_upper = word.strip().upper()
 
-                # Use freq dict for dominant class check
                 if word_upper in shared.sensorimotor_freq:
                     if shared.sensorimotor_freq[word_upper].get("Dominant.sensorimotor") == selected_class:
                         sensorimotor_matches_per_class[selected_class] += 1
                         sensorimotor_matches += 1
                     
-                    # Use original lancaster dict for mean value for z-score
                     if word_upper in df_sensorimotor and selected_class_mean_name in df_sensorimotor[word_upper]:
                          word_mean = df_sensorimotor[word_upper].get(selected_class_mean_name, mean_value[sensorimotor_class_idx]) # Default to mean if key missing
-                         # Avoid division by zero if std_dev is 0
                          std_dev = std_deviation[sensorimotor_class_idx]
                          word_z = (word_mean - mean_value[sensorimotor_class_idx]) / std_dev if std_dev > 0 else 0.0
                          word_prob = 1 - norm.cdf(word_z)
@@ -185,10 +164,9 @@ def calculate_probs(reply):
                     correct_words += 1
                     sensorimotor_total_per_class[selected_class] += 1
 
-            sensorimotor_hash = secure_hash_for_word(word, 0, 10) # 0-10 = 11 classes
-            sensorimotor_class_idx = sensorimotor_hash # Update for next word
+            sensorimotor_hash = secure_hash_for_word(word, 0, 10)
+            sensorimotor_class_idx = sensorimotor_hash
 
-            # Redgreen Watermark
             if token_idx < T and T > 0 and vocab_size > 0:
                 try:
                     last_token = tokens[token_idx]
@@ -206,7 +184,7 @@ def calculate_probs(reply):
                     if token_position.numel() > 0 and token_position.item() < gls:
                         in_green_list += 1
                 except IndexError:
-                    pass # Ignore index errors near end of token list
+                    pass
                 except Exception as e:
                     print(f"    WARNING: RedGreen check failed: {e}")
             
@@ -215,7 +193,6 @@ def calculate_probs(reply):
         sentence_hash = secure_hash_for_sentence(sentence, 0, 25)
         shared.secret_key[1] = sentence_hash
 
-    # --- Calculate Probabilities ---
     num_acrostic_checks = len(sentences) - 1 if len(sentences) > 1 else 0
     acrostic_prob = binom.sf(correct_acrosticons - 1, num_acrostic_checks, 1/26) if num_acrostic_checks > 0 else 1.0
 
@@ -224,7 +201,6 @@ def calculate_probs(reply):
     if T > 0 and gamma * (1 - gamma) > 0:
         expected_in_green = gamma * T
         variance = T * gamma * (1 - gamma)
-        # Avoid division by zero if variance is tiny
         redgreen_z_score = (in_green_list - expected_in_green) / math.sqrt(variance) if variance > 1e-9 else 0.0
         redgreen_prob = norm.sf(redgreen_z_score)
     else:
@@ -232,7 +208,6 @@ def calculate_probs(reply):
         
     final_score = acrostic_prob * sensorimotor_prob * redgreen_prob
     
-    # Handle potential NaN scores
     if math.isnan(final_score): final_score = 1.0
     if math.isnan(sensorimotor_prob): sensorimotor_prob = 1.0
     if math.isnan(acrostic_prob): acrostic_prob = 1.0
@@ -241,10 +216,8 @@ def calculate_probs(reply):
     return (final_score, sensorimotor_prob, acrostic_prob, redgreen_prob, len(sentences),
             correct_acrosticons, total_words, correct_words, sensorimotor_matches,
             sensorimotor_matches_per_class)
-# --- END: Standard Detection Code ---
 
 
-# --- Main Detection Loop for Attacked Text ---
 print(f"  Loading ATTACKED text from '{ATTACKED_TEXT_FILE_PATH}'...")
 try:
     with open(ATTACKED_TEXT_FILE_PATH, 'r', encoding='utf-8') as f:
@@ -264,15 +237,12 @@ for idx, sample in enumerate(attacked_data, start=1):
     prompt = sample.get('prompt', '')
     print(f"    Detecting attacked sample {idx}/{len(attacked_data)}...")
     
-    # We still keep the original 'outputs' structure for consistency if needed later
     sample_detection = {'prompt': prompt, 'outputs': {}, 'detection': {}}
-    
-    # Get keys to process (all keys except prompt in the attacked file)
     keys_to_detect = [k for k in sample.keys() if k != 'prompt']
     
     for key in keys_to_detect:
-        text = sample.get(key) # Get the attacked text
-        sample_detection['outputs'][key] = text # Store attacked text in outputs
+        text = sample.get(key)
+        sample_detection['outputs'][key] = text
         
         try:
             (final_score, sensorimotor_prob, acrostic_prob, redgreen_prob, num_sentences,
